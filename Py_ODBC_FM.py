@@ -1,13 +1,20 @@
 import pyodbc
 import openpyxl
+import configparser
 
 def filemaker_odbc_connection(path):
     wb = openpyxl.load_workbook(path)
     ws = wb['Export']
     total_rows = ws.max_row
 
+    config = configparser.ConfigParser()
+    config.read('config.ini', encoding='utf-8')
+    server = config['odbc']['server']
+    database = config['odbc']['database']
+    uid = config['odbc']['uid']
+    pasd = config['odbc']['pasd']
     # ODBC 連接字串
-    connection_string = "Driver={FileMaker ODBC}; Server=192.168.20.168; Database=全科MIS資訊系統; UID=cegicloud; PWD=cegfilemaker2021"
+    connection_string = f"Driver={{FileMaker ODBC}}; Server={server}; Database={database}; UID={uid}; PWD={pasd}"
 
     try:
         # 嘗試連接 FileMaker ODBC

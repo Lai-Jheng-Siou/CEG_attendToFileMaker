@@ -1,50 +1,81 @@
-import asyncio
-from pyppeteer import launch
-from datetime import datetime
+import requests
+from datetime import datetime, timedelta
 from time import sleep
 import os
+import configparser
 
 from detectAbsence import detectAbsence
 from Py_ODBC_FM import filemaker_odbc_connection
 
-date = datetime.now()
-lastDay = "%s/%s/%s"%(date.year, date.month, date.day - 1)
-async def main():
-    # 啟動瀏覽器
-    browser = await launch(
-        executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', #Chrome瀏覽器程式位置
-        headless=False,
-        )
+# date = datetime.now()
+# lastDay = "%s/%s/%s"%(date.year, date.month, date.day - 1)
 
-    # 創建新的頁面
-    page = await browser.newPage()
+config = configparser.ConfigParser()
+config.read('config.ini', encoding='utf-8')
 
-    # 前往目標網頁
-    await page.goto('https://ip.ceg.com.tw/attend_search.php')
+def main():
+    acc = config['http']['account']
+    pasd = config['http']['password']
 
-    await page.type('input[name="username"]', 'admin')
-    await page.type('input[name="password"]', 'CegSystem@80017427')
-    await page.click('#submitLogin1')
+    date = datetime.today() - timedelta(days=1)
+    year = date.strftime('%Y')
+    month = date.strftime('%m ')
+    day = date.strftime('%d')
 
-    await asyncio.sleep(1)
+    timestamp = int(datetime.timestamp(date))
 
-    await page.type('input[name="value_workno_date_1"]', lastDay)
-    await page.click('#searchButton1')
+    #url
+    url = config['http']['url_main']
+    searchUrl = config['http']['url_search'] + f'q=(workno_date~equals~{year}%2F{month}%2F{day}~date2)'
+    exportUrl = config['http']['url_export']
+    #end
 
-    await asyncio.sleep(1)
+    session = requests.session()
 
-    await page.goto('https://ip.ceg.com.tw/attend_export.php')
-    await page.click('#saveButton1')
+    payload_v1 = {
+        'username': acc,
+        'password': pasd,
+        'btnSubmit': 'Login'
+    }
+    r = session.post(url, data = payload_v1)
 
-    await asyncio.sleep(5)
+    r = session.get(searchUrl)
 
-    # 關閉瀏覽器
-    await browser.close()
+    session_code = session.cookies.get_dict()
+
+    payload_v2 = {
+        "type": "excel2007",
+        "records": "all",
+        "txtformatting": "formatted",
+        "page": "export",
+    }
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "Referer": "https://ip.ceg.com.tw/attend_export.php",
+        "Cookie": f"_ga_DM0K38FZR9=GS1.1.{timestamp}.1.1.{timestamp + 100}.0.0.0; _ga_HTDVDM2P6L=GS1.1.{timestamp}.1.1.{timestamp + 100}.0.0.0; _ga=GA1.3.698881609.{timestamp}; s1665029584={session_code['s1665029584']}; mediaType=1",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+
+    r = session.post(exportUrl, data = payload_v2, headers = headers)
+    st = f'status_code: {r.status_code}, '
+    if r.status_code == 200:
+        # 將二進制數據保存為 Excel 文件
+        with open("attend.xlsx", "wb") as f:
+            f.write(r.content)
+        st += '檔案下載成功\n'
+    else:
+        st += '檔案下載失敗\n'
+
+    return st
+
 
 if __name__ == "__main__":
-    # asyncio.run(main())
+    result = result = main()
 
-    xlsxPath = r"C:\Users\CEG\Desktop\attend.xlsx"
+    path = os.path.abspath(os.getcwd())
+    xlsxPath = path + "\\attend.xlsx"
+
     st = detectAbsence(xlsxPath)
 
     sleep(1)
@@ -53,7 +84,11 @@ if __name__ == "__main__":
 
     sleep(1)
 
-    with open(r"C:\Users\CEG\Desktop\attend.txt", 'a') as txt:
+    desktop = os.path.join(os.path.expanduser("~"), 'Desktop') + "\\attend.txt"
+
+
+    with open(desktop, 'a') as txt:
+        txt.write(result)
         txt.write(st)
         try:
             os.remove(xlsxPath)  # 刪除指定位子的檔案
