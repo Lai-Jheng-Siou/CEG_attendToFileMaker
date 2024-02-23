@@ -1,24 +1,15 @@
-import pyodbc
 import openpyxl
-import configparser
+
+from tools.pyODBC import connect_odbc
 
 def filemaker_odbc_connection(path):
     wb = openpyxl.load_workbook(path)
     ws = wb['Export']
     total_rows = ws.max_row
 
-    config = configparser.ConfigParser()
-    config.read('config.ini', encoding='utf-8')
-    server = config['odbc']['server']
-    database = config['odbc']['database']
-    uid = config['odbc']['uid']
-    pasd = config['odbc']['pasd']
-    # ODBC 連接字串
-    connection_string = f"Driver={{FileMaker ODBC}}; Server={server}; Database={database}; UID={uid}; PWD={pasd}"
-
     try:
         # 嘗試連接 FileMaker ODBC
-        conn = pyodbc.connect(connection_string)
+        conn = connect_odbc()
         cursor = conn.cursor()
 
         table_name = "人事_刷卡記錄"

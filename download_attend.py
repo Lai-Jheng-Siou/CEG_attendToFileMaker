@@ -1,42 +1,39 @@
 import requests
 from datetime import datetime, timedelta
-from time import sleep
 import os
-import configparser
 
 from detectAbsence import detectAbsence
 from Py_ODBC_FM import filemaker_odbc_connection
 
-# date = datetime.now()
-# lastDay = "%s/%s/%s"%(date.year, date.month, date.day - 1)
+from tools.custTool import getConfig
 
-config = configparser.ConfigParser()
-config.read('config.ini', encoding='utf-8')
 
 def main():
-    acc = config['http']['account']
-    pasd = config['http']['password']
-
     date = datetime.today() - timedelta(days=1)
     year = date.strftime('%Y')
     month = date.strftime('%m ')
     day = date.strftime('%d')
-
     timestamp = int(datetime.timestamp(date))
+
+    config = getConfig()
 
     #url
     url = config['http']['url_main']
     searchUrl = config['http']['url_search'] + f'q=(workno_date~equals~{year}%2F{month}%2F{day}~date2)'
     exportUrl = config['http']['url_export']
-    #end
 
-    session = requests.session()
+    #account & password
+    acc = config['http']['account']
+    pasd = config['http']['password']
 
     payload_v1 = {
         'username': acc,
         'password': pasd,
         'btnSubmit': 'Login'
     }
+
+    session = requests.session()
+    
     r = session.post(url, data = payload_v1)
 
     r = session.get(searchUrl)
@@ -71,18 +68,14 @@ def main():
 
 
 if __name__ == "__main__":
-    result = result = main()
+    result = main()
 
     path = os.path.abspath(os.getcwd())
     xlsxPath = path + "\\attend.xlsx"
 
     st = detectAbsence(xlsxPath)
 
-    sleep(1)
-
     filemaker_odbc_connection(xlsxPath)
-
-    sleep(1)
 
     desktop = os.path.join(os.path.expanduser("~"), 'Desktop') + "\\attend.txt"
 
@@ -96,6 +89,6 @@ if __name__ == "__main__":
         except FileNotFoundError:
             txt.write(f"檔案 {xlsxPath} 不存在\n")
         except PermissionError:
-            txt.write(f"無法刪除檔案 {xlsxPath}，可能因為沒有足夠的權限\n")
+            txt.write(f"無法刪除檔案 {xlsxPath}，沒有足夠的權限\n")
         except Exception as e:
             txt.write(f"刪除檔案 {xlsxPath} 時發生錯誤：{e}\n")
